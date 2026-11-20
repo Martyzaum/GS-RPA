@@ -1,0 +1,410 @@
+<!DOCTYPE html><html lang="pt-BR"><head><meta charset="utf-8"><title>AlertaAqui RPA</title>
+<style>
+@page { size: A4; margin: 16mm 14mm; }
+body { font-family: "Segoe UI", Arial, sans-serif; font-size: 10.5pt; color: #1d2b36; line-height: 1.45; }
+h1 { color: #fff; background: #0b3d5c; padding: 14px 18px; border-bottom: 5px solid #f2a900; border-radius: 6px; font-size: 20pt; }
+h2 { color: #0b3d5c; border-bottom: 2px solid #f2a900; padding-bottom: 3px; margin-top: 22px; page-break-after: avoid; }
+table { border-collapse: collapse; width: 100%; margin: 8px 0; page-break-inside: avoid; }
+th { background: #0b3d5c; color: #fff; text-align: left; }
+th, td { border: 1px solid #c9d4dc; padding: 5px 7px; vertical-align: top; }
+tr:nth-child(even) td { background: #f4f7fa; }
+code { background: #eef2f5; padding: 1px 4px; border-radius: 3px; font-size: 9pt; }
+blockquote { border-left: 4px solid #f2a900; background: #fff8e1; margin: 8px 0; padding: 6px 12px; }
+pre.mermaid { text-align: center; page-break-inside: avoid; background: #fff; white-space: pre; font-size: 8.5pt; }
+pre.mermaid svg { max-height: 235mm; width: auto !important; }
+hr { border: 0; border-top: 1px solid #dde4ea; }
+</style>
+<script src="https://cdn.jsdelivr.net/npm/mermaid/dist/mermaid.min.js"></script>
+</head><body>
+<h1>AlertaAqui — Automação RPA (UiPath)</h1>
+<p><strong>Disciplina:</strong> RPA (UiPath) — FIAP · <strong>Produto:</strong> AlertaAqui — alerta de enchente e onda de calor por endereço; a Defesa Civil valida e dispara os alertas em um painel admin.</p>
+<hr />
+<h2>1. Processo escolhido</h2>
+<p><strong>Robô "Cadastrador de Boletins":</strong> lê a planilha <code>alertas_defesa_civil.xlsx</code> (colunas <strong>Regiao, NivelRisco, Mensagem, Data</strong>), que simula os boletins exportados por um <strong>sistema legado da Defesa Civil sem API</strong>, e <strong>cadastra cada alerta no formulário web do painel admin</strong> do MVP AlertaAqui (<code>form.html</code>).</p>
+<table>
+<thead>
+<tr>
+<th>Item</th>
+<th>Descrição</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Entrada</td>
+<td><code>alertas_defesa_civil.xlsx</code>, aba <code>Alertas</code> (exportação diária/por evento do sistema legado)</td>
+</tr>
+<tr>
+<td>Saída</td>
+<td>Alertas cadastrados no painel admin (lista "Alertas enviados") + log de execução</td>
+</tr>
+<tr>
+<td>Gatilho</td>
+<td>Manual (assistido) ou agendado via Orchestrator a cada chegada de boletim</td>
+</tr>
+<tr>
+<td>Atividades UiPath</td>
+<td>Read Range (workbook), Open Browser, For Each Row, Try Catch, Type Into, Select Item, Click, Log Message</td>
+</tr>
+<tr>
+<td>Tratamento de exceção</td>
+<td>Linha com falha é registrada (Log Message nível <em>Error</em>) e o robô segue para o próximo boletim</td>
+</tr>
+</tbody>
+</table>
+<p><strong>Por que esse processo?</strong> Hoje um servidor da Defesa Civil copia, boletim por boletim, os dados do sistema legado para o painel. É repetitivo, sujeito a erro de digitação e atrasa o disparo do alerta — e em enchente, minutos importam.</p>
+<hr />
+<h2>2. Assessment de automação</h2>
+<p>Escala: 1 (desfavorável) a 5 (muito favorável à automação).</p>
+<table>
+<thead>
+<tr>
+<th>Critério</th>
+<th>Avaliação</th>
+<th>Nota</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Volume / frequência</td>
+<td>~20 boletins/dia, picos em temporada de chuva (nov–mar) e ondas de calor</td>
+<td>4</td>
+</tr>
+<tr>
+<td>Regras claras</td>
+<td>Mapeamento 1:1 coluna → campo, sem julgamento humano na digitação</td>
+<td>5</td>
+</tr>
+<tr>
+<td>Estabilidade do processo / tela</td>
+<td>Formulário próprio do MVP com IDs fixos (<code>regiao</code>, <code>nivel</code>, <code>mensagem</code>, <code>data</code>, <code>btnEnviar</code>); planilha com layout padronizado</td>
+<td>4</td>
+</tr>
+<tr>
+<td>Dados estruturados e digitais</td>
+<td>Planilha Excel com 4 colunas tipadas; nada em papel ou imagem</td>
+<td>5</td>
+</tr>
+<tr>
+<td>Exceções</td>
+<td>Poucas e previsíveis (campo vazio, nível inválido, tela fora do ar) → tratadas no Try Catch</td>
+<td>4</td>
+</tr>
+<tr>
+<td>Impacto</td>
+<td>Reduz tempo até o disparo do alerta (vidas e patrimônio) e libera servidores para validação</td>
+<td>5</td>
+</tr>
+<tr>
+<td><strong>Total</strong></td>
+<td></td>
+<td><strong>27 / 30 (90%)</strong></td>
+</tr>
+</tbody>
+</table>
+<p><strong>Conclusão: processo APTO PARA RPA.</strong> Alta pontuação em regras, dados estruturados e impacto; a única ressalva (dependência da tela) é mitigada por seletores estáveis por <code>id</code>.</p>
+<hr />
+<h2>3. Diagnóstico: RPA vs API</h2>
+<table>
+<thead>
+<tr>
+<th>Aspecto</th>
+<th>Situação</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Sistema de origem (Defesa Civil)</td>
+<td><strong>Legado, sem API</strong>; só exporta planilha/relatório → integração por API é inviável hoje</td>
+</tr>
+<tr>
+<td>Sistema de destino (painel AlertaAqui)</td>
+<td>MVP com formulário web; API REST ainda não publicada</td>
+</tr>
+<tr>
+<td>Decisão</td>
+<td><strong>RPA agora</strong>: entrega valor imediato, sem alterar o sistema legado (que não é nosso)</td>
+</tr>
+</tbody>
+</table>
+<p><strong>Roadmap de migração (RPA → API):</strong></p>
+<ol>
+<li><strong>Fase 1 (agora):</strong> robô UiPath lê a planilha e preenche o formulário (UI automation).</li>
+<li><strong>Fase 2 (MVP v2):</strong> AlertaAqui publica <code>POST /api/alertas</code>; o robô passa a usar <strong>HTTP Request</strong> em vez da tela (mais rápido e sem dependência de seletores).</li>
+<li><strong>Fase 3:</strong> quando a Defesa Civil modernizar o sistema (ou expuser webhook/arquivo em pasta monitorada), integração direta sistema-a-sistema; o robô é aposentado ou vira apenas monitor de exceções.</li>
+</ol>
+<p>RPA aqui é <strong>ponte tática</strong>, não arquitetura definitiva.</p>
+<hr />
+<h2>4. BPM — As-Is (processo atual, manual)</h2>
+<pre class="mermaid">flowchart TD
+    A([Boletim gerado no sistema legado da Defesa Civil]) --&gt; B[Servidor exporta/imprime o boletim]
+    B --&gt; C[Servidor abre o painel admin AlertaAqui]
+    C --&gt; D[Digita Região, Nível, Mensagem e Data manualmente]
+    D --&gt; E{Conferiu sem erros?}
+    E -- Não --&gt; F[Corrige digitação / retrabalho]
+    F --&gt; D
+    E -- Sim --&gt; G[Clica em Enviar]
+    G --&gt; H{Há mais boletins?}
+    H -- Sim --&gt; D
+    H -- Não --&gt; I[Defesa Civil valida e dispara alertas]
+    I --&gt; J([Cidadão recebe o alerta com atraso de horas])
+</pre>
+<p><strong>Dores:</strong> ~8 min por boletim, erros de digitação (região errada = alerta para o bairro errado), fila acumulada em dias de chuva forte.</p>
+<h2>5. BPM — To-Be (com robô UiPath)</h2>
+<pre class="mermaid">flowchart TD
+    A([Boletim exportado do sistema legado para alertas_defesa_civil.xlsx]) --&gt; B[Robô: Read Range da planilha]
+    B --&gt; C[Robô: Open Browser no painel admin]
+    C --&gt; D[For Each Row: próximo boletim]
+    D --&gt; E[Type Into Região / Select Item Nível / Type Into Mensagem e Data]
+    E --&gt; F[Click Enviar]
+    F --&gt; G{Erro?}
+    G -- Sim --&gt; H[Log Message Error e segue]
+    G -- Não --&gt; I[Log Message Info]
+    H --&gt; J{Há mais linhas?}
+    I --&gt; J
+    J -- Sim --&gt; D
+    J -- Não --&gt; K[Servidor revisa e valida no painel]
+    K --&gt; L([Alerta disparado em minutos])
+</pre>
+<p><strong>Ganhos:</strong> ~30 s por boletim pelo robô, zero erro de digitação, servidor foca na <strong>validação</strong> (decisão humana) e não na digitação.</p>
+<hr />
+<h2>6. Business case</h2>
+<blockquote>
+<p><strong>Atenção: todos os números abaixo são PREMISSAS / ESTIMATIVAS</strong> de mercado para fins acadêmicos, não dados oficiais da Defesa Civil.</p>
+</blockquote>
+<table>
+<thead>
+<tr>
+<th>Premissa (estimativa)</th>
+<th>Valor</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Boletins por mês</td>
+<td>600 (≈ 20/dia) — <em>premissa</em></td>
+</tr>
+<tr>
+<td>Tempo de cadastro manual por boletim (digitar + conferir)</td>
+<td>8 min — <em>premissa</em></td>
+</tr>
+<tr>
+<td>Custo/hora de servidor público com encargos</td>
+<td>R$ 60,00 — <em>estimativa</em></td>
+</tr>
+<tr>
+<td>Taxa de erro de digitação</td>
+<td>3% — <em>premissa</em></td>
+</tr>
+<tr>
+<td>Tempo de retrabalho por erro</td>
+<td>15 min — <em>premissa</em></td>
+</tr>
+<tr>
+<td>Licença UiPath produção (robô + Orchestrator, rateado)</td>
+<td>≈ R$ 25.000/ano — <em>estimativa</em></td>
+</tr>
+<tr>
+<td>Infraestrutura (VM para o robô)</td>
+<td>≈ R$ 300/mês — <em>estimativa</em></td>
+</tr>
+</tbody>
+</table>
+<p><strong>Cálculo (cenário manual):</strong></p>
+<table>
+<thead>
+<tr>
+<th>Item</th>
+<th>Conta</th>
+<th>Resultado</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Horas de digitação/mês</td>
+<td>600 × 8 min = 4.800 min</td>
+<td><strong>80 h</strong></td>
+</tr>
+<tr>
+<td>Horas de retrabalho/mês</td>
+<td>600 × 3% = 18 erros × 15 min</td>
+<td><strong>4,5 h</strong></td>
+</tr>
+<tr>
+<td>Total horas manuais/mês</td>
+<td>80 + 4,5</td>
+<td><strong>84,5 h</strong></td>
+</tr>
+<tr>
+<td>Custo manual/mês</td>
+<td>84,5 h × R$ 60</td>
+<td><strong>R$ 5.070</strong></td>
+</tr>
+<tr>
+<td>Custo manual/ano</td>
+<td>R$ 5.070 × 12</td>
+<td><strong>R$ 60.840</strong></td>
+</tr>
+</tbody>
+</table>
+<p><strong>Custo da automação (ano):</strong> licença ≈ R$ 25.000 + infra R$ 3.600 = <strong>≈ R$ 28.600/ano</strong> (estimativa).</p>
+<table>
+<thead>
+<tr>
+<th>Indicador</th>
+<th>Valor</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Economia bruta anual</td>
+<td>R$ 60.840</td>
+</tr>
+<tr>
+<td>Economia líquida anual</td>
+<td><strong>≈ R$ 32.240</strong></td>
+</tr>
+<tr>
+<td>ROI ano 1</td>
+<td>≈ 113%</td>
+</tr>
+<tr>
+<td>Payback</td>
+<td>≈ 5,6 meses</td>
+</tr>
+<tr>
+<td>Horas liberadas por mês</td>
+<td>≈ 84 h (≈ meio servidor dedicado)</td>
+</tr>
+</tbody>
+</table>
+<ul>
+<li><strong>UiPath Community Edition é gratuita</strong> para estudo, uso pessoal e pequenas equipes — o protótipo deste trabalho custou <strong>R$ 0</strong> em licença.</li>
+<li>Benefício não monetizado (o mais importante): <strong>tempo até o alerta cair de horas para minutos</strong> e eliminação de alertas enviados para a região errada.</li>
+</ul>
+<hr />
+<h2>7. Roteiro do vídeo (3 min)</h2>
+<table>
+<thead>
+<tr>
+<th>Tempo</th>
+<th>Bloco</th>
+<th>Fala / tela</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>0:00–0:30</td>
+<td><strong>Problema</strong></td>
+<td>"Em novembro, bairros como Jardim Pantanal e Itaim Paulista alagam todo ano. A Defesa Civil emite boletins, mas eles saem de um sistema antigo, sem API. Alguém precisa digitar tudo no painel do AlertaAqui — e cada minuto de atraso é um morador que não foi avisado." (tela: logo AlertaAqui + foto/mapa de alagamento)</td>
+</tr>
+<tr>
+<td>0:30–1:00</td>
+<td><strong>Processo As-Is</strong></td>
+<td>"Hoje é assim: o servidor exporta o boletim, abre o painel e digita região, nível, mensagem e data, um por um. São cerca de 8 minutos por boletim, com erro de digitação." (tela: diagrama As-Is)</td>
+</tr>
+<tr>
+<td>1:00–2:00</td>
+<td><strong>Demo do robô</strong></td>
+<td>"Esta é a planilha com 10 boletins. Aperto Run no UiPath…" (tela: Studio → Run; Chrome abre o form.html; campos sendo preenchidos sozinhos; lista 'Alertas enviados' crescendo até 10; painel Output com os Log Messages). "O robô lê a planilha com Read Range, percorre cada linha e preenche o formulário. Se uma linha der erro, ele registra no log e segue."</td>
+</tr>
+<tr>
+<td>2:00–2:40</td>
+<td><strong>To-Be e ganhos</strong></td>
+<td>"No To-Be, o servidor só valida. Pelas nossas premissas — 600 boletins/mês, 8 minutos cada, R$ 60/hora — são 84 horas e cerca de R$ 60 mil por ano em digitação; com licença estimada, economia líquida de ~R$ 32 mil/ano e payback em ~6 meses. E o alerta sai em minutos." (tela: diagrama To-Be + tabela business case)</td>
+</tr>
+<tr>
+<td>2:40–3:00</td>
+<td><strong>Fechamento</strong></td>
+<td>"Assessment: 27 de 30, apto para RPA. É a ponte até o AlertaAqui ter API própria — aí o robô migra para HTTP Request. AlertaAqui: o alerta certo, no lugar certo, na hora certa." (tela: roadmap + logo)</td>
+</tr>
+</tbody>
+</table>
+<hr />
+<h2>8. Passo a passo no UiPath Studio (5 minutos) — Plano B</h2>
+<blockquote>
+<p><strong>Importante:</strong> o <code>Main.xaml</code> deste pacote foi escrito à mão (sem o Studio disponível no momento da geração) e <strong>não pôde ser testado</strong>. Ele segue o formato Windows-Legacy com atividades clássicas, mas se o Studio acusar erro ao abrir, <strong>monte do zero seguindo exatamente os passos abaixo</strong> (≈ 5 min).</p>
+</blockquote>
+<p><strong>Preparação</strong></p>
+<ol>
+<li>Abra o UiPath Studio → <strong>New Project → Process</strong> → Nome <code>AlertaAquiRPA</code> → Compatibility <strong>Windows - Legacy</strong> (ou <strong>Windows</strong>), linguagem <strong>VB</strong>.</li>
+<li>Copie <code>alertas_defesa_civil.xlsx</code> e <code>form.html</code> para a pasta do projeto.</li>
+<li><strong>Manage Packages</strong>: confirme <code>UiPath.System.Activities</code>, <code>UiPath.UIAutomation.Activities</code>, <code>UiPath.Excel.Activities</code>. Instale a extensão do Chrome do UiPath (Home → Tools → Chrome Extension) se ainda não tiver.</li>
+<li>Abra <code>form.html</code> uma vez no Chrome manualmente para garantir que abre.</li>
+</ol>
+<p><strong>Variáveis (painel Variables, escopo Main)</strong></p>
+<table>
+<thead>
+<tr>
+<th>Nome</th>
+<th>Tipo</th>
+<th>Default</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>dtAlertas</code></td>
+<td>DataTable</td>
+<td>—</td>
+</tr>
+<tr>
+<td><code>urlForm</code></td>
+<td>String</td>
+<td>—</td>
+</tr>
+<tr>
+<td><code>qtdOk</code></td>
+<td>Int32</td>
+<td>0</td>
+</tr>
+<tr>
+<td><code>qtdErro</code></td>
+<td>Int32</td>
+<td>0</td>
+</tr>
+</tbody>
+</table>
+<p><strong>Atividades (na ordem, dentro da Sequence Main)</strong></p>
+<ol>
+<li><strong>Assign</strong> → To: <code>urlForm</code> · Value: <code>"file:///" + System.IO.Path.GetFullPath("form.html").Replace("\", "/")</code></li>
+<li><strong>Read Range</strong> (categoria <em>App Integration → Excel → Workbook</em>, <strong>sem</strong> Excel Application Scope) → WorkbookPath: <code>"alertas_defesa_civil.xlsx"</code> · SheetName: <code>"Alertas"</code> · Range: <code>""</code> · AddHeaders: ✔ · Output DataTable: <code>dtAlertas</code></li>
+<li><strong>Log Message</strong> → Level: Info · Message: <code>"Boletins lidos: " + dtAlertas.Rows.Count.ToString</code></li>
+<li><strong>Open Browser</strong> → Url: <code>urlForm</code> · BrowserType: <code>Chrome</code> · NewSession: ✔. Dentro do <strong>Do</strong>:</li>
+<li><strong>For Each Row</strong> → ForEach: <code>row</code> · In: <code>dtAlertas</code>. Dentro do <strong>Body</strong>:<ol>
+<li><strong>Try Catch</strong>. No <strong>Try</strong>, uma Sequence com:<ul>
+<li><strong>Type Into</strong> → Text: <code>row("Regiao").ToString.Trim</code> · EmptyField ✔ · SimulateType ✔ · Selector: <code>&lt;html app='chrome.exe' title='AlertaAqui*' /&gt;&lt;webctrl id='regiao' tag='INPUT' /&gt;</code></li>
+<li><strong>Select Item</strong> → Item: <code>row("NivelRisco").ToString.Trim</code> · Selector: <code>&lt;html app='chrome.exe' title='AlertaAqui*' /&gt;&lt;webctrl id='nivel' tag='SELECT' /&gt;</code></li>
+<li><strong>Type Into</strong> → Text: <code>row("Mensagem").ToString.Trim</code> · EmptyField ✔ · SimulateType ✔ · Selector: <code>&lt;html app='chrome.exe' title='AlertaAqui*' /&gt;&lt;webctrl id='mensagem' tag='TEXTAREA' /&gt;</code></li>
+<li><strong>Type Into</strong> (data) → Text: <code>Convert.ToDateTime(row("Data")).ToString("ddMMyyyy")</code> · SimulateType <strong>desmarcado</strong> (campo <code>date</code> precisa de digitação "hardware") · EmptyField desmarcado · Selector: <code>&lt;html app='chrome.exe' title='AlertaAqui*' /&gt;&lt;webctrl id='data' tag='INPUT' /&gt;</code></li>
+<li><strong>Click</strong> → SimulateClick ✔ · Selector: <code>&lt;html app='chrome.exe' title='AlertaAqui*' /&gt;&lt;webctrl id='btnEnviar' tag='BUTTON' /&gt;</code></li>
+<li><strong>Assign</strong> → <code>qtdOk</code> = <code>qtdOk + 1</code></li>
+<li><strong>Log Message</strong> → Info · <code>"Alerta cadastrado: " + row("Regiao").ToString + " | " + row("NivelRisco").ToString</code></li>
+</ul>
+</li>
+<li>Em <strong>Catches</strong> → Add new catch → <strong>System.Exception</strong>, com:<ul>
+<li><strong>Assign</strong> → <code>qtdErro</code> = <code>qtdErro + 1</code></li>
+<li><strong>Log Message</strong> → Level: <strong>Error</strong> · Message: <code>"Falha ao cadastrar alerta da regiao " + row("Regiao").ToString + ": " + exception.Message</code></li>
+</ul>
+</li>
+</ol>
+</li>
+<li><strong>Log Message</strong> (fora do Open Browser) → Info · <code>"AlertaAqui RPA finalizado. Sucesso: " + qtdOk.ToString + " | Erros: " + qtdErro.ToString</code></li>
+</ol>
+<p><strong>Dicas rápidas</strong></p>
+<ul>
+<li>Atalho: em vez de digitar os seletores, use <strong>Indicate on screen</strong> em cada campo e depois confira no <strong>Selector Editor</strong> que só restaram <code>id</code> e <code>tag</code>.</li>
+<li>Se o campo Data ficar vazio (Chrome em inglês usa mm/dd/aaaa), troque o formato para <code>"MMddyyyy"</code>.</li>
+<li>Rode com <strong>Run (Ctrl+F5)</strong>; resultado esperado: 10 alertas na lista "Alertas enviados" e <code>Sucesso: 10 | Erros: 0</code> no painel Output.</li>
+<li>Para testar o Catch: apague um valor de nível na planilha → a validação não grava aquela linha; ou altere um seletor para forçar timeout e ver o Log <em>Error</em>.</li>
+</ul>
+<hr />
+<h2>9. Arquivos entregues</h2>
+<ul>
+<li><code>alertas_defesa_civil.xlsx</code> / <code>.csv</code> — 10 boletins de exemplo (regiões de SP, novembro/2026)</li>
+<li><code>form.html</code> — painel admin simulado (IDs estáveis para seletores, persistência em localStorage)</li>
+<li><code>UiPath/AlertaAquiRPA/project.json</code> + <code>Main.xaml</code> — projeto UiPath (com cópias da planilha e do form)</li>
+<li><code>docs/rpa.md</code> / <code>docs/rpa.pdf</code> — esta documentação</li>
+</ul>
+<script>
+if (window.mermaid) { mermaid.initialize({ startOnLoad: true, theme: "default", flowchart: { useMaxWidth: true } }); }
+</script>
+</body></html>

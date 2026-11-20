@@ -1,0 +1,124 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>AlertaAqui — Painel Admin | Cadastro de Alertas</title>
+<style>
+  :root { --azul:#0b3d5c; --amarelo:#f2a900; --fundo:#f4f7fa; --erro:#c62828; }
+  * { box-sizing:border-box; }
+  body { margin:0; font-family:"Segoe UI", Arial, sans-serif; background:var(--fundo); color:#1d2b36; }
+  header { background:var(--azul); color:#fff; padding:16px 32px; display:flex; align-items:center; gap:14px; border-bottom:5px solid var(--amarelo); }
+  .logo { width:40px; height:40px; background:var(--amarelo); color:var(--azul); border-radius:50%; display:flex; align-items:center; justify-content:center; font-weight:800; font-size:22px; }
+  header h1 { margin:0; font-size:22px; }
+  header small { opacity:.8; display:block; font-weight:400; font-size:13px; }
+  main { max-width:960px; margin:28px auto; padding:0 20px; display:grid; gap:24px; }
+  .card { background:#fff; border-radius:10px; padding:24px; box-shadow:0 2px 8px rgba(11,61,92,.12); }
+  .card h2 { margin-top:0; color:var(--azul); font-size:18px; }
+  .grid { display:grid; grid-template-columns:1fr 1fr; gap:16px; }
+  .full { grid-column:1 / -1; }
+  label { display:block; font-weight:600; margin-bottom:6px; font-size:14px; }
+  input, select, textarea { width:100%; padding:10px 12px; border:1px solid #b9c7d2; border-radius:6px; font-size:15px; font-family:inherit; }
+  input:focus, select:focus, textarea:focus { outline:2px solid var(--amarelo); border-color:var(--amarelo); }
+  textarea { min-height:80px; resize:vertical; }
+  .acoes { display:flex; gap:12px; margin-top:18px; align-items:center; }
+  button { border:0; border-radius:6px; padding:11px 22px; font-size:15px; font-weight:700; cursor:pointer; }
+  #btnEnviar { background:var(--amarelo); color:var(--azul); }
+  #btnEnviar:hover { filter:brightness(1.05); }
+  #btnLimpar { background:#e3e9ee; color:var(--azul); }
+  #msgStatus { font-size:14px; }
+  .ok { color:#2e7d32; } .erro { color:var(--erro); }
+  table { width:100%; border-collapse:collapse; font-size:14px; }
+  th { background:var(--azul); color:#fff; text-align:left; padding:8px; }
+  td { padding:8px; border-bottom:1px solid #e3e9ee; vertical-align:top; }
+  .tag { padding:3px 8px; border-radius:10px; font-size:12px; font-weight:700; white-space:nowrap; }
+  .Baixo { background:#e8f5e9; color:#2e7d32; } .Médio { background:#fff8e1; color:#8d6e00; }
+  .Alto { background:#fff3e0; color:#e65100; } .Muito.Alto, .MuitoAlto { background:#ffebee; color:#c62828; }
+  #contador { color:#5b6b78; font-weight:400; font-size:14px; }
+</style>
+</head>
+<body>
+<header>
+  <div class="logo">!</div>
+  <div><h1>AlertaAqui <small>Painel Admin — Defesa Civil · Cadastro de alertas</small></h1></div>
+</header>
+<main>
+  <section class="card">
+    <h2>Novo alerta</h2>
+    <form id="formAlerta" novalidate>
+      <div class="grid">
+        <div>
+          <label for="regiao">Região</label>
+          <input type="text" id="regiao" name="regiao" placeholder="Ex.: Jardim Pantanal">
+        </div>
+        <div>
+          <label for="nivel">Nível de risco</label>
+          <select id="nivel" name="nivel">
+            <option value="">Selecione...</option>
+            <option value="Baixo">Baixo</option>
+            <option value="Médio">Médio</option>
+            <option value="Alto">Alto</option>
+            <option value="Muito Alto">Muito Alto</option>
+          </select>
+        </div>
+        <div class="full">
+          <label for="mensagem">Mensagem</label>
+          <textarea id="mensagem" name="mensagem" maxlength="280" placeholder="Mensagem curta em linguagem simples"></textarea>
+        </div>
+        <div>
+          <label for="data">Data</label>
+          <input type="date" id="data" name="data">
+        </div>
+      </div>
+      <div class="acoes">
+        <button type="submit" id="btnEnviar">Enviar</button>
+        <span id="msgStatus" role="status"></span>
+      </div>
+    </form>
+  </section>
+
+  <section class="card">
+    <h2>Alertas enviados <span id="contador"></span></h2>
+    <table id="tabelaAlertas">
+      <thead><tr><th>#</th><th>Região</th><th>Nível</th><th>Mensagem</th><th>Data</th><th>Cadastrado em</th></tr></thead>
+      <tbody id="corpoTabela"></tbody>
+    </table>
+    <div class="acoes"><button type="button" id="btnLimpar">Limpar lista</button></div>
+  </section>
+</main>
+<script>
+  const CHAVE = "alertaaqui_alertas";
+  const $ = id => document.getElementById(id);
+  const carregar = () => JSON.parse(localStorage.getItem(CHAVE) || "[]");
+  const salvar = lista => localStorage.setItem(CHAVE, JSON.stringify(lista));
+  const esc = s => String(s).replace(/[&<>"]/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
+
+  function render() {
+    const lista = carregar();
+    $("contador").textContent = "(" + lista.length + ")";
+    $("corpoTabela").innerHTML = lista.map((a, i) =>
+      `<tr><td>${i + 1}</td><td>${esc(a.regiao)}</td><td><span class="tag ${esc(a.nivel).replace(" ", "")}">${esc(a.nivel)}</span></td>` +
+      `<td>${esc(a.mensagem)}</td><td>${esc(a.data.split("-").reverse().join("/"))}</td><td>${esc(a.criadoEm)}</td></tr>`
+    ).join("") || '<tr><td colspan="6">Nenhum alerta cadastrado.</td></tr>';
+  }
+
+  function status(txt, ok) { $("msgStatus").textContent = txt; $("msgStatus").className = ok ? "ok" : "erro"; }
+
+  $("formAlerta").addEventListener("submit", e => {
+    e.preventDefault();
+    const a = { regiao: $("regiao").value.trim(), nivel: $("nivel").value,
+                mensagem: $("mensagem").value.trim(), data: $("data").value };
+    if (!a.regiao || !a.nivel || !a.mensagem || !a.data) { status("Preencha todos os campos.", false); return; }
+    if (a.mensagem.length < 10) { status("Mensagem muito curta (mín. 10 caracteres).", false); return; }
+    a.criadoEm = new Date().toLocaleString("pt-BR");
+    const lista = carregar(); lista.push(a); salvar(lista);
+    $("formAlerta").reset(); status("Alerta cadastrado: " + a.regiao, true); render();
+  });
+
+  $("btnLimpar").addEventListener("click", () => {
+    if (confirm("Limpar todos os alertas?")) { localStorage.removeItem(CHAVE); render(); status("", true); }
+  });
+  render();
+</script>
+</body>
+</html>
