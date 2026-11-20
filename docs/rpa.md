@@ -2,6 +2,18 @@
 
 **Disciplina:** RPA (UiPath) — FIAP · **Produto:** AlertaAqui — alerta de enchente e onda de calor por endereço; a Defesa Civil valida e dispara os alertas em um painel admin.
 
+**Integrantes:**
+
+| Nome completo | RM |
+|---|---|
+| Kaio Vinicius Meireles Alves | 553282 |
+| Lucas Alves de Souza | 553956 |
+| Guilherme Fernandes de Freitas | 554323 |
+| João Pedro Chizzolini de Freitas | 553172 |
+| Henrique Rafael | 553945 |
+
+**Repositório:** https://github.com/Martyzaum/GS-RPA
+
 ---
 
 ## 1. Processo escolhido
